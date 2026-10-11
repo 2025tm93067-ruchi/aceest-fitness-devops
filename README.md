@@ -101,3 +101,7 @@ Source/data must be kept under ~/workspace per lab policy. Push source to GitHub
 - [Docker Python guide](https://docs.docker.com/guides/python/)
 - [GitHub Actions Python](https://docs.github.com/en/actions/tutorials/build-and-test-code/python)
 - [Jenkins Pipeline](https://www.jenkins.io/doc/book/pipeline/)
+
+## Assignment scope
+
+ The desktop baseline is adapted into flask with client registration, sample calorie estimates and weekly progress.Github actions validates pushes and pull requests; Jenkins independently validatesbuils from main.
