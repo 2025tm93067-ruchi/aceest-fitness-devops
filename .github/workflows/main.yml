@@ -1,0 +1,49 @@
+name: ACEest CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install development dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Compile and lint
+        run: |
+          python -m compileall -q app.py services.py database.py tests
+          python -m ruff check .
+      - name: Build runtime image
+        run: docker build --target runtime -t aceest-fitness:${{ github.sha }} .
+      - name: Build test image
+        run: docker build --target test -t aceest-fitness-test:${{ github.sha }} .
+      - name: Run Pytest inside Docker
+        run: |
+          mkdir -p reports
+          docker run --name aceest-ci-tests aceest-fitness-test:${{ github.sha }} python -m pytest -q -p no:cacheprovider --junitxml=/tmp/test-results.xml --cov=app --cov=services --cov=database --cov-report=term-missing --cov-fail-under=90
+      - name: Collect test report
+        if: always()
+        run: |
+          mkdir -p reports
+          if docker container inspect aceest-ci-tests >/dev/null 2>&1; then
+            docker cp aceest-ci-tests:/tmp/test-results.xml reports/test-results.xml || true
+            docker rm -f aceest-ci-tests
+          fi
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-report
+          path: reports/test-results.xml
+          if-no-files-found: warn
