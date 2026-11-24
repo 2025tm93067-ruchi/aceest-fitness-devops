@@ -1,0 +1,115 @@
+# Render image placeholders with scripts/bootstrap-k8s.sh before applying.
+# SQLite is deliberately local and ephemeral: use only GET /version for this lab.
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: aceest-stable, namespace: aceest-lab}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector: {matchLabels: {app: aceest, track: stable}}
+  template:
+    metadata: {labels: {app: aceest, track: stable}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: app
+          image: STABLE_IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 5000}]
+          env: [{name: DATABASE, value: /tmp/aceest.db}, {name: PYTHONUNBUFFERED, value: "1"}]
+          resources: {requests: {cpu: 25m, memory: 48Mi}, limits: {cpu: 250m, memory: 160Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          readinessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 3, periodSeconds: 3}
+          livenessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 20, periodSeconds: 10}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: aceest-candidate, namespace: aceest-lab}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector: {matchLabels: {app: aceest, track: candidate}}
+  template:
+    metadata: {labels: {app: aceest, track: candidate}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: app
+          image: CANDIDATE_IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 5000}]
+          env: [{name: DATABASE, value: /tmp/aceest.db}, {name: PYTHONUNBUFFERED, value: "1"}]
+          resources: {requests: {cpu: 25m, memory: 48Mi}, limits: {cpu: 250m, memory: 160Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          readinessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 3, periodSeconds: 3}
+          livenessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 20, periodSeconds: 10}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: aceest-rolling, namespace: aceest-lab}
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  progressDeadlineSeconds: 120
+  strategy: {type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}
+  selector: {matchLabels: {app: aceest, track: rolling}}
+  template:
+    metadata: {labels: {app: aceest, track: rolling}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: app
+          image: STABLE_IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 5000}]
+          env: [{name: DATABASE, value: /tmp/aceest.db}, {name: PYTHONUNBUFFERED, value: "1"}]
+          resources: {requests: {cpu: 25m, memory: 48Mi}, limits: {cpu: 250m, memory: 160Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          readinessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 3, periodSeconds: 3}
+          livenessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 20, periodSeconds: 10}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: aceest-bg-blue, namespace: aceest-lab}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 120
+  selector: {matchLabels: {app: aceest, track: bluegreen, slot: blue}}
+  template:
+    metadata: {labels: {app: aceest, track: bluegreen, slot: blue}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: app
+          image: STABLE_IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 5000}]
+          env: [{name: DATABASE, value: /tmp/aceest.db}, {name: PYTHONUNBUFFERED, value: "1"}]
+          resources: {requests: {cpu: 25m, memory: 48Mi}, limits: {cpu: 250m, memory: 160Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          readinessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 3, periodSeconds: 3}
+          livenessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 20, periodSeconds: 10}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: aceest-bg-green, namespace: aceest-lab}
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 120
+  selector: {matchLabels: {app: aceest, track: bluegreen, slot: green}}
+  template:
+    metadata: {labels: {app: aceest, track: bluegreen, slot: green}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001}
+      containers:
+        - name: app
+          image: CANDIDATE_IMAGE_PLACEHOLDER
+          imagePullPolicy: IfNotPresent
+          ports: [{name: http, containerPort: 5000}]
+          env: [{name: DATABASE, value: /tmp/aceest.db}, {name: PYTHONUNBUFFERED, value: "1"}]
+          resources: {requests: {cpu: 25m, memory: 48Mi}, limits: {cpu: 250m, memory: 160Mi}}
+          securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+          readinessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 3, periodSeconds: 3}
+          livenessProbe: {httpGet: {path: /version, port: http}, initialDelaySeconds: 20, periodSeconds: 10}

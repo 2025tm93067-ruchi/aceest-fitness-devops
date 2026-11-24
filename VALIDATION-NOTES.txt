@@ -1,0 +1,6 @@
+Baseline: user supplied screenshots show 52 tests passing with 100% coverage, the initial Jenkins pipeline succeeding, and the Flask health endpoint returning ok.
+This update adds 8 version/metadata tests. The updated test suite and pipeline have NOT been executed in the VM yet. A local test run was not completed.
+Python AST and TOML checks passed. The six deployment shell scripts passed sh -n; 13 Kubernetes YAML documents and resource selectors were statically checked.
+Sonar analysis, Docker publication, Kubernetes routing/rollback and a public endpoint still require actual execution and verification.
+Publishing and Kubernetes deployment parameters default to disabled.
+Save project files at ~/workspace/aceest-fitness and submission evidence under ~/workspace/submission-evidence. No credentials are included in this archive.

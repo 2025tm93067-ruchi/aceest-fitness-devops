@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata: {name: aceest-router, namespace: aceest-lab}
+data:
+  nginx.conf: |
+    worker_processes 1;
+    pid /tmp/nginx.pid;
+    error_log /dev/stderr info;
+    events { worker_connections 512; }
+    http {
+      access_log /dev/stdout;
+      client_body_temp_path /tmp/client_temp;
+      proxy_temp_path /tmp/proxy_temp;
+      log_format proof 'request_id=$trace_id method=$request_method uri=$uri status=$status upstream=$upstream_addr version=$upstream_http_x_aceest_version commit=$upstream_http_x_aceest_commit';
+      # The verifier supplies a unique ID; mirror subrequests inherit that header.
+      map $http_x_request_id $trace_id { "" $request_id; default $http_x_request_id; }
+      map $http_x_aceest_cohort $ab_backend {
+        default stable_backend;
+        stable stable_backend;
+        candidate candidate_backend;
+      }
+      upstream stable_backend { server aceest-stable:5000; }
+      upstream candidate_backend { server aceest-candidate:5000; }
+      upstream rolling_backend { server aceest-rolling:5000; }
+      upstream bluegreen_backend { server aceest-bluegreen:5000; }
+      upstream canary_backend {
+        server aceest-stable:5000 weight=9;
+        server aceest-candidate:5000 weight=1;
+      }
+      server {
+        listen 8080;
+        access_log /dev/stdout proof;
+        log_subrequest on;
+        proxy_set_header Host $host;
+        proxy_set_header X-Request-ID $trace_id;
+        proxy_connect_timeout 3s;
+        proxy_read_timeout 10s;
+        # No retries: do not silently reroute a failed candidate to stable.
+        proxy_next_upstream off;
+        location = /healthz { access_log off; return 200 'ok\n'; }
+        location ~ ^/rolling/(version)?$ {
+          limit_except GET { deny all; }
+          rewrite ^ /version break;
+          proxy_pass http://rolling_backend;
+        }
+        location ~ ^/bluegreen/(version)?$ {
+          limit_except GET { deny all; }
+          rewrite ^ /version break;
+          proxy_pass http://bluegreen_backend;
+        }
+        location ~ ^/canary/(version)?$ {
+          limit_except GET { deny all; }
+          rewrite ^ /version break;
+          proxy_pass http://canary_backend;
+        }
+        location ~ ^/ab/(version)?$ {
+          limit_except GET { deny all; }
+          rewrite ^ /version break;
+          proxy_pass http://$ab_backend;
+        }
+        location ~ ^/shadow/(version)?$ {
+          limit_except GET { deny all; }
+          mirror /_mirror;
+          mirror_request_body off;
+          rewrite ^ /version break;
+          proxy_pass http://stable_backend;
+        }
+        location = /_mirror {
+          internal;
+          proxy_pass_request_body off;
+          proxy_set_header Content-Length "";
+          proxy_set_header Host $host;
+          proxy_set_header X-Request-ID $trace_id;
+          proxy_pass http://candidate_backend/version;
+        }
+        location / { return 404; }
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: {name: aceest-entry, namespace: aceest-lab}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: aceest-entry}}
+  template:
+    metadata: {labels: {app: aceest-entry}}
+    spec:
+      securityContext: {runAsNonRoot: true, runAsUser: 101, runAsGroup: 101, fsGroup: 101}
+      containers:
+        - name: router
+          # Official stable tag verified 2026-11-24; pin a digest for production.
+          image: nginx:1.30.8-alpine
+          command: [nginx]
+          args: [-g, "daemon off;"]
+          ports: [{name: http, containerPort: 8080}]
+          resources: {requests: {cpu: 20m, memory: 24Mi}, limits: {cpu: 150m, memory: 64Mi}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          readinessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 3}
+          livenessProbe: {httpGet: {path: /healthz, port: http}, initialDelaySeconds: 10, periodSeconds: 10}
+          volumeMounts:
+            - {name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: temp, mountPath: /tmp}
+      volumes:
+        - {name: config, configMap: {name: aceest-router}}
+        - {name: temp, emptyDir: {sizeLimit: 64Mi}}
