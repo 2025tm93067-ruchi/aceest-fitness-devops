@@ -101,6 +101,7 @@ spec:
           volumeMounts:
             - {name: config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
             - {name: temp, mountPath: /tmp}
+            - {name: temp, mountPath: /var/cache/nginx}
       volumes:
         - {name: config, configMap: {name: aceest-router}}
         - {name: temp, emptyDir: {sizeLimit: 64Mi}}
